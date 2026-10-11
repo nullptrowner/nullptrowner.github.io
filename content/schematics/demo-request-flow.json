@@ -1,0 +1,20 @@
+{
+  "title": "Request flow through a gateway",
+  "description": "Demo schematic. A client talks to a gateway, which checks a cache before hitting one of two backend services.",
+  "date": "2026-10-11",
+  "updated": "2026-10-11",
+  "tags": ["architecture", "demo"],
+  "nodes": [
+    { "id": "client", "x": 20, "y": 120, "w": 170, "h": 70, "shape": "rounded", "label": "Client" },
+    { "id": "gateway", "x": 260, "y": 120, "w": 170, "h": 70, "shape": "rect", "label": "API gateway" },
+    { "id": "cache", "x": 260, "y": 20, "w": 170, "h": 110, "shape": "diamond", "label": "Cache hit?" },
+    { "id": "service-a", "x": 560, "y": 20, "w": 170, "h": 70, "shape": "rounded", "label": "Service A" },
+    { "id": "service-b", "x": 560, "y": 220, "w": 170, "h": 70, "shape": "rounded", "label": "Service B" }
+  ],
+  "edges": [
+    { "id": "e1", "from": "client", "to": "gateway", "label": "HTTPS" },
+    { "id": "e2", "from": "gateway", "to": "cache" },
+    { "id": "e3", "from": "cache", "to": "service-a", "label": "miss" },
+    { "id": "e4", "from": "gateway", "to": "service-b" }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "name": "nullptr",
+  "title": "nullptr — notes on building software",
+  "description": "Engineering notes on full-stack development, AI automation, infrastructure and open-source experiments.",
+  "url": "https://nullptrowner.github.io",
+  "lang": "en",
+  "author": {
+    "name": "nullptr",
+    "role": "Software developer",
+    "tagline": "Notes on building software, small tools and long experiments.",
+    "intro": "I write about full-stack development, automation with language models, infrastructure and the open-source things I build.",
+    "about": [
+      "This is a personal site and technical notebook. It collects write-ups, project pages and experiments in one place.",
+      "Edit this text in content/site.json — nothing on this page is a claim about real experience, employers or results."
+    ]
+  },
+  "socials": [
+    { "id": "github", "label": "GitHub", "url": "https://github.com/nullptrowner" },
+    { "id": "telegram", "label": "Telegram", "url": "https://t.me/nullptrowner" }
+  ],
+  "nav": [
+    { "label": "Home", "to": "/", "icon": "home" },
+    { "label": "Writing", "to": "/writing", "icon": "pen" },
+    { "label": "Projects", "to": "/projects", "icon": "folder" },
+    { "label": "Schematics", "to": "/schematics", "icon": "workflow" },
+    { "label": "Tags", "to": "/tags", "icon": "tag" },
+    { "label": "About", "to": "/about", "icon": "user" }
+  ],
+  "categories": [
+    { "id": "fullstack", "label": "Full-stack" },
+    { "id": "ai", "label": "AI & Automation" },
+    { "id": "open-source", "label": "Open Source" },
+    { "id": "infra", "label": "Infrastructure & DevOps" },
+    { "id": "notes", "label": "Technical Notes" },
+    { "id": "experiments", "label": "Experiments" }
+  ]
+}

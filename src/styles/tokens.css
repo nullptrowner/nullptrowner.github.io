@@ -1,0 +1,86 @@
+/* Design tokens. Change the palette here — everything else reads these variables. */
+:root {
+  --cherry-dark: #31111a;
+  --cherry-medium: #3f1620;
+  --deep-black: #101010;
+
+  --font-serif: 'Source Serif 4 Variable', 'Source Serif 4', Georgia, serif;
+  --font-sans: 'Inter Variable', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --radius-card: 20px;
+  --radius-control: 8px;
+  --dur: 200ms;
+  --ease: cubic-bezier(0.2, 0.6, 0.2, 1);
+}
+
+:root,
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg: #f8f8f6;
+  --surface: #ffffff;
+  --surface-2: #efeeeb;
+  --text: #121212;
+  --text-2: #373734;
+  --muted: #7b7974;
+  --border: #e7e6e1;
+  --border-strong: #d5d3cc;
+
+  --accent: var(--cherry-dark); /* links, active text */
+  --accent-hover: #5a1f2f;
+  --accent-bg: var(--cherry-dark); /* active pills, primary buttons */
+  --accent-on: #f8f8f6; /* text on --accent-bg */
+  --accent-soft: #f1e6e8; /* tinted surface */
+  --accent-soft-text: #3f1620;
+  --selection: #e9cfd5;
+
+  --panel-bg: var(--cherry-dark); /* featured block */
+  --panel-text: #f5eef0;
+  --panel-muted: #c4a6ae;
+
+  --code-bg: #f3f2ee;
+  --code-head: #eae8e3;
+  --code-text: #2a2826;
+  --hl-comment: #8a8680;
+  --hl-keyword: #8a1f3d;
+  --hl-string: #2f6a4f;
+  --hl-number: #9a5a14;
+  --hl-title: #1f4f8a;
+  --hl-attr: #6a3f8f;
+  --shadow: 0 1px 2px rgb(18 18 18 / 0.04), 0 4px 16px rgb(18 18 18 / 0.04);
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #101010;
+  --surface: #181818;
+  --surface-2: #222020;
+  --text: #f5f3f0;
+  --text-2: #aba7a4;
+  --muted: #8a8683;
+  --border: #343030;
+  --border-strong: #4a4343;
+
+  --accent: #e3b3bf; /* cherry is too dark as text on #101010, so text accents use a lifted tint */
+  --accent-hover: #f2cdd6;
+  --accent-bg: var(--cherry-medium);
+  --accent-on: #f7e4e9;
+  --accent-soft: #261319;
+  --accent-soft-text: #e8c3cc;
+  --selection: #5a2433;
+
+  --panel-bg: var(--cherry-dark);
+  --panel-text: #f5eef0;
+  --panel-muted: #c4a6ae;
+
+  --code-bg: #151414;
+  --code-head: #1d1b1b;
+  --code-text: #e6e2de;
+  --hl-comment: #8a8480;
+  --hl-keyword: #e08aa0;
+  --hl-string: #8fc5a5;
+  --hl-number: #e0b070;
+  --hl-title: #8fb7e8;
+  --hl-attr: #c4a0e8;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 4px 16px rgb(0 0 0 / 0.25);
+}

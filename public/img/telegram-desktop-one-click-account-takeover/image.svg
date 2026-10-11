@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1644" height="928" viewBox="0 0 1644 928">
+  <defs>
+    <pattern id="grid" width="51.5" height="51.5" patternUnits="userSpaceOnUse">
+      <path d="M 51.5 0 L 0 0 0 51.5" fill="none" stroke="#57303a" stroke-width="0.8" opacity=".57"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#d9aeb9"/></marker>
+  </defs>
+  <rect width="1644" height="928" fill="#300f1a"/>
+  <rect width="1644" height="928" fill="url(#grid)"/>
+  <g fill="#f5e9ec" font-family="monospace" font-size="19" font-weight="500">
+    <text x="410" y="80" text-anchor="middle"><tspan x="410">1. attacker adds the victim</tspan><tspan x="410" dy="22">to a super group</tspan><tspan x="410" dy="22">2. attacker posts 3</tspan><tspan x="410" dy="22">files in the group</tspan><tspan x="410" dy="22">3. attacker sends a link</tspan></text>
+    <rect x="247" y="185" width="324" height="109" fill="#401824" stroke="#d9aeb9" stroke-width="2"/>
+    <text x="409" y="212" text-anchor="middle"><tspan x="409">• inctructions1.txt</tspan><tspan x="409" dy="22">• inctructions2.txt</tspan><tspan x="409" dy="22">• inctructions3.txt</tspan><tspan x="409" dy="22">• https://corvus.sec/rules</tspan></text>
+    <path d="M462 294L608 445" stroke="#d9aeb9" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+    <text x="821" y="409" text-anchor="middle"><tspan x="821">4. The victim clicks the link. The browser</tspan><tspan x="821" dy="22">opens it and follows the redirect</tspan></text>
+    <path d="M414 445H977L947 597H384Z" fill="#401824" stroke="#d9aeb9" stroke-width="2"/>
+    <text x="680" y="483" text-anchor="middle"><tspan x="680">redirect to</tspan><tspan x="680" dy="22">tg://?a=1;</tspan></text>
+    <text x="430" y="527"><tspan x="430">OPEN:interpret.../../../path/instructions1.txt</tspan><tspan x="430" dy="22">OPEN:interpret.../../../path/instructions1.txt</tspan><tspan x="430" dy="22">OPEN:interpret.../../../path/instructions1.txt</tspan></text>
+    <text x="716" y="647" text-anchor="middle"><tspan x="716">5. The OS launches a second Telegram</tspan><tspan x="716" dy="22">process and the IPC command injection</tspan><tspan x="716" dy="22">fires</tspan></text>
+    <path d="M925 633L1107 607" stroke="#d9aeb9" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+    <rect x="1198" y="437" width="336" height="106" fill="#401824" stroke="#d9aeb9" stroke-width="2"/>
+    <text x="1366" y="462" text-anchor="middle"><tspan x="1366">&gt; https://corvus.sec/rules</tspan><tspan x="1366" dy="22">key_datas &lt;</tspan><tspan x="1366" dy="22">D877F783D5D3EF8CS &lt;</tspan><tspan x="1366" dy="22">maps &lt;</tspan></text>
+    <text x="1350" y="568" text-anchor="middle"><tspan x="1350">6.interpret: commands execute and the</tspan><tspan x="1350" dy="22">files are uploaded to the attacker's group.</tspan></text>
+    <path d="M1314 621L1211 759" stroke="#d9aeb9" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+    <text x="1174" y="801" text-anchor="middle"><tspan x="1174">7. Attacker takes control of</tspan><tspan x="1174" dy="22">the victim's account using</tspan><tspan x="1174" dy="22">the exfiltrated files</tspan></text>
+  </g>
+</svg>
